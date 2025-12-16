@@ -8,6 +8,7 @@ The goal of this assignment is to implement by yourself:
   DateTimeIndex.
 
 Detailed instructions for question 1:
+
 The nearest neighbor classifier predicts for a point X_i the target y_k of
 the training sample X_k which is the closest to X_i. We measure proximity with
 the Euclidean distance. The model will be evaluated with the accuracy (average
@@ -54,11 +55,15 @@ import pandas as pd
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
 
+from sklearn.discriminant_analysis import unique_labels
 from sklearn.model_selection import BaseCrossValidator
+
+from sklearn.metrics import accuracy_score
 
 from sklearn.utils.validation import check_is_fitted
 from sklearn.utils.validation import validate_data
 from sklearn.metrics.pairwise import pairwise_distances
+from collections import Counter
 
 
 class KNearestNeighbors(ClassifierMixin, BaseEstimator):
@@ -67,7 +72,7 @@ class KNearestNeighbors(ClassifierMixin, BaseEstimator):
     def __init__(self, n_neighbors=1):  # noqa: D107
         self.n_neighbors = n_neighbors
 
-    def fit(self, X, y):
+    def fit(self, X: np.ndarray, y: np.ndarray):
         """Fitting function.
 
         Parameters
@@ -82,7 +87,29 @@ class KNearestNeighbors(ClassifierMixin, BaseEstimator):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+
+        # Check that X and y have correct shape, set n_features_in_, etc.
+        X, y = validate_data(self, X, y)
+
+        # Store the classes seen during fit
+        self.classes_ = unique_labels(y)
+        self.X_ = X
+        self.y_ = y
+
+        # Return the classifier
         return self
+
+    @staticmethod
+    def cast(pred):
+        match type(pred):
+            case np.integer:
+                return int(pred)
+            case np.floating:
+                return float(pred)
+            case np.str_:
+                return str(pred)
+            case _:
+                return pred
 
     def predict(self, X):
         """Predict function.
@@ -97,8 +124,28 @@ class KNearestNeighbors(ClassifierMixin, BaseEstimator):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
-        return y_pred
+
+        # Check if fit has been called
+        check_is_fitted(self)
+
+        # Input validation
+        X = validate_data(self, X, reset=False)
+
+        dist = pairwise_distances(self.X_, X, metric='sqeuclidean')
+
+        y_pred = []
+
+        for dist_y in np.transpose(dist):
+            best = np.argpartition(dist_y, self.n_neighbors)[:self.n_neighbors]
+            y_best = [self.y_[ele] for ele in best]
+
+            c = Counter(y_best)
+
+            pred = c.most_common(1)[0][0]
+
+            y_pred.append(self.cast(pred))
+
+        return np.array(y_pred)
 
     def score(self, X, y):
         """Calculate the score of the prediction.
@@ -115,7 +162,10 @@ class KNearestNeighbors(ClassifierMixin, BaseEstimator):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+
+        y_pred = self.predict(X)
+
+        return accuracy_score(y, y_pred)
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -155,7 +205,12 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        if self.time_col != 'index':
+            date: pd.Series = X[self.time_col]
+        else:
+            date: pd.Series = X.index.to_series()
+
+        return len(pd.Series(date).dt.to_period('M').unique()) - 1
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -178,11 +233,42 @@ class MonthlySplit(BaseCrossValidator):
             The testing set indices for that split.
         """
 
-        n_samples = X.shape[0]
+        # n_samples = X.shape[0]
+        # n_splits = self.get_n_splits(X, y, groups)
+        # for i in range(n_splits):
+        #     idx_train = range(n_samples)
+        #     idx_test = range(n_samples)
+        #     yield (
+        #         idx_train, idx_test
+        #     )
+
+        if self.time_col != 'index':
+            date: pd.Series = X[self.time_col]
+        else:
+            date: pd.Series = X.index.to_series()
+
+        if not pd.api.types.is_datetime64_any_dtype(date):
+            raise ValueError('datetime')
+
+        data_month: pd.PeriodDtype = (
+                    pd.Series(date)
+                    .dt.to_period('M')
+                    .sort_values()
+                    .unique()
+                )
+
+        # n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
+
+            indices_month_i = \
+                pd.Series(date).dt.to_period('M') == data_month[i]
+            indices_month_i1 = \
+                pd.Series(date).dt.to_period('M') == data_month[i+1]
+
+            idx_train = np.where(indices_month_i)[0]
+            idx_test = np.where(indices_month_i1)[0]
+
             yield (
                 idx_train, idx_test
             )
