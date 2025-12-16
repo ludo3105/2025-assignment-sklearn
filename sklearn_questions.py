@@ -81,13 +81,11 @@ class KNearestNeighbors(ClassifierMixin, BaseEstimator):
             Data to train the model.
         y : ndarray, shape (n_samples,)
             Labels associated with the training data.
-
         Returns
         -------
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
-
         # Check that X and y have correct shape, set n_features_in_, etc.
         X, y = validate_data(self, X, y)
 
@@ -101,6 +99,17 @@ class KNearestNeighbors(ClassifierMixin, BaseEstimator):
 
     @staticmethod
     def cast(pred):
+        """Cast the prediction to the original type.
+
+        Parameters
+        ----------
+        pred : any
+            Prediction to cast.
+        Returns
+        -------
+        casted_pred : any
+            Prediction casted to the original type.
+        """
         match type(pred):
             case np.integer:
                 return int(pred)
@@ -118,13 +127,11 @@ class KNearestNeighbors(ClassifierMixin, BaseEstimator):
         ----------
         X : ndarray, shape (n_test_samples, n_features)
             Data to predict on.
-
         Returns
         -------
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-
         # Check if fit has been called
         check_is_fitted(self)
 
@@ -156,13 +163,11 @@ class KNearestNeighbors(ClassifierMixin, BaseEstimator):
             Data to score on.
         y : ndarray, shape (n_samples,)
             target values.
-
         Returns
         ----------
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-
         y_pred = self.predict(X)
 
         return accuracy_score(y, y_pred)
@@ -224,7 +229,6 @@ class MonthlySplit(BaseCrossValidator):
             Always ignored, exists for compatibility.
         groups : array-like of shape (n_samples,)
             Always ignored, exists for compatibility.
-
         Yields
         ------
         idx_train : ndarray
@@ -232,7 +236,6 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
         # n_samples = X.shape[0]
         # n_splits = self.get_n_splits(X, y, groups)
         # for i in range(n_splits):
